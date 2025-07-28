@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Horários</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='15' y='15' width='70' height='70' rx='10' fill='%23fff' stroke='%23ff9900' stroke-width='5'/%3E%3Crect x='30' y='10' width='10' height='20' rx='5' fill='%23ff9900'/%3E%3Crect x='60' y='10' width='10' height='20' rx='5' fill='%23ff9900'/%3E%3Cpath d='M25 35h50M25 50h50M25 65h50' stroke='%23cccccc' stroke-width='5'/%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.6);
+            transition: opacity 0.3s ease-in-out;
+            z-index: 50;
+        }
+        .modal-content {
+            transition: transform 0.3s ease-in-out;
+        }
+        .nav-link.active, .nav-link-sub.active {
+            background-color: #ff9900;
+            color: white;
+        }
+        .schedule-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+        .schedule-slot {
+            height: 90px;
+        }
+        /* Print Styles */
+        @media print {
+            body > .app-container, .modal-backdrop {
+                display: none !important;
+            }
+            #print-area {
+                display: block !important;
+            }
+            .print-header {
+                text-align: center;
+                margin-bottom: 10px;
+            }
+            .print-header img {
+                max-height: 40px;
+                display: inline-block;
+            }
+            .print-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 9px;
+                table-layout: fixed;
+                border: 1px solid #ccc;
+            }
+            .print-table th, .print-table td {
+                border: 1px solid #ccc;
+                padding: 4px;
+                text-align: center;
+                height: 40px;
+            }
+            .print-table th {
+                background-color: #f3f4f6;
+            }
+            .print-table th:first-child, .print-table td:first-child {
+                width: 18%; /* Adjust width for the first column */
+                font-weight: bold;
+            }
+            .page-break {
+                page-break-after: always;
+            }
+            .ticket-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+            }
+            .ticket {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="flex h-screen bg-gray-100 app-container">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="bg-white text-gray-800 w-64 fixed lg:relative inset-y-0 left-0 transform -translate-x-full lg:translate-x-0 z-30 flex flex-col border-r border-gray-200">
+            <div class="h-20 flex items-center justify-center border-b-2 border-gray-100 p-4">
+                <img id="school-logo" src="https://www.adepolpr.org/wp-content/uploads/2022/11/logo-positivo-1.png" alt="Logo da Escola" class="max-h-full" onerror="this.onerror=null;this.src='https://placehold.co/150x50/ff9900/FFFFFF?text=Seu+Logo';">
+            </div>
+            <nav class="flex-1 px-4 py-4 space-y-2">
+                <div>
+                    <button id="grade-menu-toggle" class="nav-link w-full text-left flex items-center justify-between px-4 py-2 rounded-lg font-semibold hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                        <span>Grade de Horários</span>
+                        <svg id="grade-arrow" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div id="grade-submenu" class="pl-4 mt-1 space-y-1 hidden">
+                        <a href="#" data-page="grade" data-schedule-type="normais" class="nav-link-sub block px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">Aulas Normais</a>
+                        <a href="#" data-page="grade" data-schedule-type="recuperacao" class="nav-link-sub block px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100">Recuperação</a>
+                    </div>
+                </div>
+                <a href="#" data-page="professores" class="nav-link flex items-center px-4 py-2 rounded-lg font-semibold hover:bg-orange-50 hover:text-orange-600 transition-colors">Professores</a>
+                <a href="#" data-page="turmas" class="nav-link flex items-center px-4 py-2 rounded-lg font-semibold hover:bg-orange-50 hover:text-orange-600 transition-colors">Turmas</a>
+                <a href="#" data-page="imprimir" class="nav-link flex items-center px-4 py-2 rounded-lg font-semibold hover:bg-orange-50 hover:text-orange-600 transition-colors">Relatórios/Imprimir</a>
+            </nav>
+            <div class="px-2 py-4 border-t border-gray-100">
+                <h3 class="px-4 text-sm font-semibold text-gray-500 mb-2">Backup</h3>
+                 <button id="exportBtn" class="w-full text-left bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors duration-200">
+                    Exportar Dados
+                </button>
+                <button onclick="document.getElementById('importFile').click()" class="w-full mt-2 text-left bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg transition-colors duration-200">
+                    Importar Dados
+                </button>
+                <input type="file" id="importFile" class="hidden" accept=".json">
+                <div id="metadata-info" class="mt-4 px-2 text-xs text-gray-400 space-y-1">
+                    <p>Última modificação:<br><span id="lastModified" class="font-medium"></span></p>
+                    <p>Último Backup Exportado:<br><span id="lastExport" class="font-medium"></span></p>
+                    <p>Último Backup Importado:<br><span id="lastImport" class="font-medium"></span></p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+             <!-- Mobile Header -->
+            <header class="lg:hidden bg-white shadow-md p-4 flex justify-between items-center">
+                <button id="hamburger-btn" class="text-gray-500 focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <img src="https://www.adepolpr.org/wp-content/uploads/2022/11/logo-positivo-1.png" alt="Logo da Escola" class="h-8" onerror="this.onerror=null;this.src='https://placehold.co/150x50/ff9900/FFFFFF?text=Seu+Logo';">
+                <div class="w-6"></div> <!-- Spacer to balance justify-between -->
+            </header>
+            <main id="main-content" class="flex-1 p-4 sm:p-6 overflow-y-auto">
+                <div id="page-grade" class="page-content"></div>
+                <div id="page-professores" class="page-content hidden"></div>
+                <div id="page-turmas" class="page-content hidden"></div>
+                <div id="page-imprimir" class="page-content hidden"></div>
+            </main>
+        </div>
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black opacity-50 z-20 hidden lg:hidden"></div>
+    </div>
+
+    <!-- Modals -->
+    <div id="mainModal" class="modal-backdrop fixed inset-0 flex items-center justify-center hidden opacity-0 p-4"></div>
+    <div id="alertModal" class="modal-backdrop fixed inset-0 flex items-center justify-center hidden opacity-0"></div>
+    
+    <!-- Print Area (moved outside main content) -->
+    <div id="print-area" class="hidden"></div>
+
+<script>
+// --- INITIAL DATA SETUP ---
+const sampleData = {
+    professores: [],
+    turmas: [],
+    horario: {},
+    horarioRecuperacao: {},
+    metadata: {
+        lastModified: null,
+        lastExport: null,
+        lastImport: null,
+        lastImportOrigin: null
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- STATE MANAGEMENT ---
+    let data = {};
+    let currentGradeView = 'turmas'; // 'turmas' or 'professores'
+    let currentScheduleType = 'normais'; // 'normais' or 'recuperacao'
+    let materiaColors = {};
+    let turmaColors = {};
+
+    const loadData = () => {
+        const savedData = localStorage.getItem('gerenciadorDeHorariosData');
+        if (savedData) {
+            data = JSON.parse(savedData);
+            if (!data.metadata) { 
+                data.metadata = { lastModified: null, lastExport: null, lastImport: null, lastImportOrigin: null };
+            }
+            if (!data.horarioRecuperacao) {
+                data.horarioRecuperacao = {};
+                 data.turmas.forEach(turma => {
+                    if (!data.horarioRecuperacao[turma.id]) {
+                        data.horarioRecuperacao[turma.id] = {
+                            segunda: Array(6).fill(null), terca: Array(6).fill(null),
+                            quarta: Array(6).fill(null), quinta: Array(6).fill(null),
+                            sexta: Array(6).fill(null)
+                        };
+                    }
+                });
+            }
+        } else {
+            data = JSON.parse(JSON.stringify(sampleData)); // Deep copy
+            saveData();
+        }
+    };
+
+    const saveData = () => {
+        data.metadata.lastModified = new Date().toISOString();
+        localStorage.setItem('gerenciadorDeHorariosData', JSON.stringify(data));
+        renderMetadata();
+    };
+
+    const formatTimestamp = (isoString) => {
+        if (!isoString) return "N/A";
+        const date = new Date(isoString);
+        return date.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const renderMetadata = () => {
+        document.getElementById('lastModified').textContent = formatTimestamp(data.metadata.lastModified);
+        document.getElementById('lastExport').textContent = formatTimestamp(data.metadata.lastExport);
+        const lastImportText = data.metadata.lastImport 
+            ? `em ${formatTimestamp(data.metadata.lastImport)} (dados de ${formatTimestamp(data.metadata.lastImportOrigin)})`
+            : "N/A";
+        document.getElementById('lastImport').textContent = lastImportText;
+    };
+
+
+    // --- UI & NAVIGATION ---
+    const pages = {
+        grade: document.getElementById('page-grade'),
+        professores: document.getElementById('page-professores'),
+        turmas: document.getElementById('page-turmas'),
+        imprimir: document.getElementById('page-imprimir'),
+    };
+    const navLinks = document.querySelectorAll('.nav-link');
+    const navLinksSub = document.querySelectorAll('.nav-link-sub');
+    const sidebar = document.getElementById('sidebar');
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const gradeMenuToggle = document.getElementById('grade-menu-toggle');
+    const gradeSubmenu = document.getElementById('grade-submenu');
+    const gradeArrow = document.getElementById('grade-arrow');
+
+    const showPage = (pageId) => {
+        Object.values(pages).forEach(p => p.classList.add('hidden'));
+        pages[pageId].classList.remove('hidden');
+        
+        navLinks.forEach(link => link.classList.remove('active'));
+        document.querySelector(`.nav-link[data-page="${pageId}"]`)?.classList.add('active');
+        
+        if (pageId === 'grade') {
+            gradeMenuToggle.classList.add('active');
+            gradeSubmenu.style.display = 'block';
+            gradeArrow.style.transform = 'rotate(0deg)';
+        } else {
+            gradeSubmenu.style.display = 'none';
+            gradeArrow.style.transform = 'rotate(-90deg)';
+        }
+
+        switch(pageId) {
+            case 'grade': renderGradePage(); break;
+            case 'professores': renderProfessoresPage(); break;
+            case 'turmas': renderTurmasPage(); break;
+            case 'imprimir': renderRelatoriosPage(); break;
+        }
+        sidebar.classList.add('-translate-x-full');
+        sidebarOverlay.classList.add('hidden');
+    };
+    
+    gradeMenuToggle.addEventListener('click', () => {
+        const isHidden = gradeSubmenu.style.display === 'none';
+        gradeSubmenu.style.display = isHidden ? 'block' : 'none';
+        gradeArrow.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+    });
+
+    navLinks.forEach(link => {
+        if(link.id !== 'grade-menu-toggle') {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                showPage(e.target.closest('.nav-link').dataset.page);
+            });
+        }
+    });
+
+    navLinksSub.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            currentScheduleType = e.target.dataset.scheduleType;
+            showPage('grade');
+        });
+    });
+
+    hamburgerBtn.addEventListener('click', () => {
+        sidebar.classList.remove('-translate-x-full');
+        sidebarOverlay.classList.remove('hidden');
+    });
+
+    sidebarOverlay.addEventListener('click', () => {
+        sidebar.classList.add('-translate-x-full');
+        sidebarOverlay.classList.add('hidden');
+    });
+    
+    // --- MODAL HANDLING ---
+    const mainModal = document.getElementById('mainModal');
+    const alertModal = document.getElementById('alertModal');
+
+    const openModal = (modalEl) => {
+        modalEl.classList.remove('hidden');
+        setTimeout(() => {
+            modalEl.classList.remove('opacity-0');
+            modalEl.querySelector('.modal-content').classList.remove('transform', '-translate-y-10');
+        }, 10);
+    };
+
+    window.closeModal = (modalEl) => {
+        modalEl.classList.add('opacity-0');
+        modalEl.querySelector('.modal-content').classList.add('transform', '-translate-y-10');
+        setTimeout(() => {
+            modalEl.classList.add('hidden');
+            modalEl.innerHTML = ''; // Clear content
+        }, 300);
+    };
+
+    const showAlert = (message, title = 'Aviso') => {
+        alertModal.innerHTML = `
+            <div class="modal-content bg-white rounded-lg shadow-xl p-6 w-full max-w-sm transform -translate-y-10">
+                <h2 class="text-xl font-bold mb-4">${title}</h2>
+                <p class="text-gray-700 mb-6">${message}</p>
+                <div class="flex justify-end space-x-3">
+                    <button onclick="window.closeModal(document.getElementById('alertModal'))" class="bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold py-2 px-4 rounded-lg">OK</button>
+                </div>
+            </div>`;
+        openModal(alertModal);
+    };
+    
+    const showConfirm = (message, title = 'Confirmação') => {
+        return new Promise(resolve => {
+            alertModal.innerHTML = `
+                <div class="modal-content bg-white rounded-lg shadow-xl p-6 w-full max-w-sm transform -translate-y-10">
+                    <h2 class="text-xl font-bold mb-4">${title}</h2>
+                    <p class="text-gray-700 mb-6">${message}</p>
+                    <div class="flex justify-end space-x-3">
+                        <button id="confirm-cancel" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                        <button id="confirm-ok" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Confirmar</button>
+                    </div>
+                </div>`;
+            
+            alertModal.querySelector('#confirm-ok').onclick = () => { closeModal(alertModal); resolve(true); };
+            alertModal.querySelector('#confirm-cancel').onclick = () => { closeModal(alertModal); resolve(false); };
+            
+            openModal(alertModal);
+        });
+    };
+
+    // --- COLOR MANAGEMENT ---
+    const generateColor = () => {
+        const hue = Math.floor(Math.random() * 360);
+        return {
+            background: `hsl(${hue}, 80%, 90%)`,
+            text: `hsl(${hue}, 70%, 30%)`
+        };
+    };
+
+    const getColorForKey = (map, key) => {
+        if (!map[key]) {
+            map[key] = generateColor();
+        }
+        return map[key];
+    };
+
+    // --- RENDER FUNCTIONS ---
+    const renderGradePage = () => {
+        materiaColors = {}; // Reset colors on each render
+        turmaColors = {};   // Reset colors on each render
+        const scheduleTitle = currentScheduleType === 'normais' ? 'Aulas Normais' : 'Recuperação';
+        pages.grade.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-800">Grade de Horários <span class="text-xl font-medium text-gray-500">(${scheduleTitle})</span></h1>
+                <div class="flex items-center gap-4">
+                    <div class="bg-gray-200 p-1 rounded-lg">
+                        <button id="view-by-turma" class="px-3 py-1 rounded-md text-sm font-semibold ${currentGradeView === 'turmas' ? 'bg-white shadow' : ''}">Por Turmas</button>
+                        <button id="view-by-prof" class="px-3 py-1 rounded-md text-sm font-semibold ${currentGradeView === 'professores' ? 'bg-white shadow' : ''}">Por Professores</button>
+                    </div>
+                    <button onclick="clearSchedule()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">
+                        Limpar Horário
+                    </button>
+                </div>
+            </div>
+            <div id="grade-container" class="space-y-8"></div>
+        `;
+
+        document.getElementById('view-by-turma').onclick = () => { currentGradeView = 'turmas'; renderGradePage(); };
+        document.getElementById('view-by-prof').onclick = () => { currentGradeView = 'professores'; renderGradePage(); };
+        
+        if (currentGradeView === 'turmas') {
+            renderGradeByTurma();
+        } else {
+            renderGradeByProfessor();
+        }
+    };
+
+    const renderGradeByTurma = () => {
+        const container = document.getElementById('grade-container');
+        const dias = ['segunda', 'terca', 'quarta', 'quinta', 'sexta'];
+        const diasNomes = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+        const horarios = ['1º Horário', '2º Horário', '3º Horário', '4º Horário', '5º Horário', '6º Horário'];
+        const scheduleObject = currentScheduleType === 'normais' ? data.horario : data.horarioRecuperacao;
+
+        container.innerHTML = data.turmas.length > 0 ? data.turmas.map(turma => `
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-[#ff9900] mb-4">${turma.name}</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse schedule-table">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="p-2 border w-auto">Horário</th>
+                                ${diasNomes.map(dia => `<th class="p-2 border">${dia}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${horarios.map((horario, slotIndex) => `
+                                <tr>
+                                    <td class="p-2 border font-bold text-center">${horario}</td>
+                                    ${dias.map(dia => {
+                                        const alocacao = scheduleObject[turma.id]?.[dia]?.[slotIndex];
+                                        if (alocacao) {
+                                            const professor = data.professores.find(p => p.id === alocacao.profId);
+                                            const color = getColorForKey(materiaColors, alocacao.materia);
+                                            return `
+                                            <td class="p-1 border text-center schedule-slot" style="background-color: ${color.background}; color: ${color.text}">
+                                                <div class="p-2 rounded-md h-full flex flex-col justify-center items-center">
+                                                    <p class="font-bold">${alocacao.materia} ${alocacao.tipo ? `<span class='text-xs'>(${alocacao.tipo})</span>` : ''}</p>
+                                                    <p class="text-xs">${professor ? professor.name : 'Professor não encontrado'}</p>
+                                                    <button onclick="removerAlocacao('${turma.id}', '${dia}', ${slotIndex})" class="text-red-500 text-xs mt-1">Remover</button>
+                                                </div>
+                                            </td>`;
+                                        }
+                                        return `<td class="p-2 border text-center schedule-slot"><button onclick="openAlocacaoModal({turmaId: '${turma.id}', dia: '${dia}', slotIndex: ${slotIndex}})" class="text-orange-600 hover:text-orange-800">+ Adicionar</button></td>`;
+                                    }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `).join('') : '<p class="text-center text-gray-500">Nenhuma turma cadastrada. Adicione uma turma para começar.</p>';
+    };
+    
+    const renderGradeByProfessor = () => {
+        const container = document.getElementById('grade-container');
+        const dias = ['segunda', 'terca', 'quarta', 'quinta', 'sexta'];
+        const diasNomes = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+        const horarios = ['1º Horário', '2º Horário', '3º Horário', '4º Horário', '5º Horário', '6º Horário'];
+        const scheduleObject = currentScheduleType === 'normais' ? data.horario : data.horarioRecuperacao;
+
+         container.innerHTML = data.professores.length > 0 ? data.professores.map(prof => `
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-[#ff9900] mb-4">${prof.name}</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse schedule-table">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="p-2 border w-auto">Horário</th>
+                                ${diasNomes.map(dia => `<th class="p-2 border">${dia}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${horarios.map((horario, slotIndex) => `
+                                <tr>
+                                    <td class="p-2 border font-bold text-center">${horario}</td>
+                                    ${dias.map(dia => {
+                                        let alocacao = null;
+                                        let turmaDaAlocacao = null;
+                                        for (const turma of data.turmas) {
+                                            const slot = scheduleObject[turma.id]?.[dia]?.[slotIndex];
+                                            if (slot && slot.profId === prof.id) {
+                                                alocacao = slot;
+                                                turmaDaAlocacao = turma;
+                                                break;
+                                            }
+                                        }
+                                        if (alocacao) {
+                                            const color = getColorForKey(turmaColors, turmaDaAlocacao.name);
+                                            return `
+                                            <td class="p-1 border text-center schedule-slot" style="background-color: ${color.background}; color: ${color.text}">
+                                                <div class="p-2 rounded-md h-full flex flex-col justify-center items-center">
+                                                    <p class="font-bold">${alocacao.materia} ${alocacao.tipo ? `<span class='text-xs'>(${alocacao.tipo})</span>` : ''}</p>
+                                                    <p class="text-xs">${turmaDaAlocacao.name}</p>
+                                                    <button onclick="removerAlocacao('${turmaDaAlocacao.id}', '${dia}', ${slotIndex})" class="text-red-500 text-xs mt-1">Remover</button>
+                                                </div>
+                                            </td>`;
+                                        }
+                                        return `<td class="p-2 border text-center schedule-slot"><button onclick="openAlocacaoModal({profId: '${prof.id}', dia: '${dia}', slotIndex: ${slotIndex}})" class="text-orange-600 hover:text-orange-800">+ Adicionar</button></td>`;
+                                    }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `).join('') : '<p class="text-center text-gray-500">Nenhum professor cadastrado. Adicione um professor para começar.</p>';
+    };
+
+    window.openAlocacaoModal = async (context) => { // context can be {turmaId, dia, slotIndex} or {profId, dia, slotIndex}
+        const isByTurma = 'turmaId' in context;
+        const title = isByTurma ? "Alocar Professor" : "Alocar Turma";
+        
+        mainModal.innerHTML = `
+            <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md transform -translate-y-10">
+                <div class="p-6">
+                    <h2 class="text-2xl font-bold mb-4">${title} (${currentScheduleType === 'normais' ? 'Normal' : 'Recuperação'})</h2>
+                    <div class="space-y-4">
+                        ${currentScheduleType === 'recuperacao' ? `
+                        <div>
+                            <label for="tipoSelect" class="block text-sm font-medium text-gray-700">Tipo</label>
+                            <select id="tipoSelect" class="mt-1 block w-full border rounded-md p-2">
+                                <option value="">Selecione...</option>
+                                <option value="Aula">Aula</option>
+                                <option value="Prova">Prova</option>
+                            </select>
+                        </div>
+                        ` : ''}
+                        <div>
+                            <label for="primarySelect" class="block text-sm font-medium text-gray-700">${isByTurma ? 'Professor' : 'Turma'}</label>
+                            <select id="primarySelect" class="mt-1 block w-full border rounded-md p-2">
+                                <option value="">Selecione...</option>
+                                ${isByTurma ? 
+                                    data.professores.map(p => `<option value="${p.id}">${p.name}</option>`).join('') : 
+                                    data.turmas.map(t => `<option value="${t.id}">${t.name}</option>`).join('')
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label for="secondarySelect" class="block text-sm font-medium text-gray-700">Matéria</label>
+                            <select id="secondarySelect" class="mt-1 block w-full border rounded-md p-2" disabled>
+                                <option value="">Selecione ${isByTurma ? 'um professor' : 'uma turma'}...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-6 py-3 flex justify-end space-x-3">
+                    <button onclick="window.closeModal(document.getElementById('mainModal'))" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button id="saveAlocacaoBtn" class="bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold py-2 px-4 rounded-lg">Salvar</button>
+                </div>
+            </div>
+        `;
+
+        const primarySelect = document.getElementById('primarySelect');
+        const secondarySelect = document.getElementById('secondarySelect');
+        const tipoSelect = document.getElementById('tipoSelect');
+        
+        primarySelect.onchange = () => {
+            const primaryId = primarySelect.value;
+            if (primaryId && isByTurma) {
+                const professor = data.professores.find(p => p.id === primaryId);
+                secondarySelect.innerHTML = professor.materias.split(',').map(m => `<option value="${m.trim()}">${m.trim()}</option>`).join('');
+                secondarySelect.disabled = false;
+            } else if (primaryId && !isByTurma) {
+                const professor = data.professores.find(p => p.id === context.profId);
+                secondarySelect.innerHTML = professor.materias.split(',').map(m => `<option value="${m.trim()}">${m.trim()}</option>`).join('');
+                secondarySelect.disabled = false;
+            } else {
+                secondarySelect.innerHTML = `<option value="">Selecione ${isByTurma ? 'um professor' : 'uma turma'}...</option>`;
+                secondarySelect.disabled = true;
+            }
+        };
+
+        document.getElementById('saveAlocacaoBtn').onclick = async () => {
+            const profId = isByTurma ? primarySelect.value : context.profId;
+            const turmaId = isByTurma ? context.turmaId : primarySelect.value;
+            const materia = secondarySelect.value;
+            const tipo = currentScheduleType === 'recuperacao' ? tipoSelect.value : null;
+
+            if (!profId || !turmaId || !materia || (currentScheduleType === 'recuperacao' && !tipo)) {
+                showAlert('Por favor, preencha todos os campos.');
+                return;
+            }
+            
+            // CONFLICT DETECTION
+            const scheduleToCheck = currentScheduleType === 'normais' ? data.horario : data.horarioRecuperacao;
+            let hardConflict = false;
+            let softConflict = false;
+            let conflictMessage = '';
+
+            for (const tId in scheduleToCheck) {
+                const slot = scheduleToCheck[tId]?.[context.dia]?.[context.slotIndex];
+                if (slot?.profId === profId) {
+                    const turmaConflito = data.turmas.find(t => t.id === tId);
+                    if (currentScheduleType === 'recuperacao' && tipo === 'Prova' && slot.tipo === 'Prova') {
+                        softConflict = true;
+                    } else {
+                        hardConflict = true;
+                        conflictMessage = `Conflito de horário! O professor já está alocado na turma ${turmaConflito.name} neste mesmo horário.`;
+                        break;
+                    }
+                }
+            }
+
+            if (hardConflict) {
+                showAlert(conflictMessage, 'Erro de Alocação');
+                return;
+            }
+
+            if (softConflict) {
+                const confirmed = await showConfirm('Atenção, esse professor já irá aplicar prova em outra turma também! Deseja continuar?');
+                if (!confirmed) return;
+            }
+            
+            scheduleToCheck[turmaId][context.dia][context.slotIndex] = { profId, materia, tipo };
+            saveData();
+            renderGradePage();
+            closeModal(mainModal);
+        };
+        
+        openModal(mainModal);
+    };
+    
+    window.removerAlocacao = (turmaId, dia, slotIndex) => {
+        const scheduleObject = currentScheduleType === 'normais' ? data.horario : data.horarioRecuperacao;
+        scheduleObject[turmaId][dia][slotIndex] = null;
+        saveData();
+        renderGradePage();
+    };
+    
+    window.clearSchedule = async () => {
+        const scheduleName = currentScheduleType === 'normais' ? 'Aulas Normais' : 'Recuperação';
+        const confirmed = await showConfirm(`Tem certeza que deseja apagar TODAS as alocações de horários de ${scheduleName}? Esta ação não pode ser desfeita.`);
+        if (confirmed) {
+            const scheduleObject = currentScheduleType === 'normais' ? data.horario : data.horarioRecuperacao;
+            for (const turmaId in scheduleObject) {
+                scheduleObject[turmaId] = {
+                    segunda: Array(6).fill(null), terca: Array(6).fill(null),
+                    quarta: Array(6).fill(null), quinta: Array(6).fill(null),
+                    sexta: Array(6).fill(null)
+                };
+            }
+            saveData();
+            renderGradePage();
+            showAlert(`Todos os horários de ${scheduleName} foram limpos.`);
+        }
+    };
+
+    const renderProfessoresPage = () => {
+        pages.professores.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-800">Gerenciar Professores</h1>
+                <button onclick="openProfessorModal()" class="bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold py-2 px-4 rounded-lg">
+                    + Adicionar Professor
+                </button>
+            </div>
+            <div id="professores-list" class="bg-white p-4 rounded-lg shadow-md"></div>
+        `;
+
+        const container = document.getElementById('professores-list');
+        container.innerHTML = '';
+        if (data.professores.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhum professor cadastrado.</p>';
+            return;
+        }
+
+        data.professores.sort((a, b) => a.name.localeCompare(b.name)).forEach(prof => {
+            const item = document.createElement('div');
+            item.className = 'flex justify-between items-center p-3 border-b last:border-b-0';
+            item.innerHTML = `
+                <div>
+                    <p class="font-semibold">${prof.name}</p>
+                    <p class="text-sm text-gray-600">${prof.materias}</p>
+                </div>
+                <div class="space-x-2">
+                    <button onclick="openProfessorModal('${prof.id}')" class="text-blue-600 hover:text-blue-800 font-medium">Editar</button>
+                    <button onclick="deleteProfessor('${prof.id}')" class="text-red-500 hover:text-red-700 font-medium">Excluir</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    };
+    
+    window.openProfessorModal = (profId = null) => {
+        const professor = profId ? data.professores.find(p => p.id === profId) : null;
+        mainModal.innerHTML = `
+            <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md transform -translate-y-10">
+                <form id="professor-form" class="p-6">
+                    <h2 class="text-2xl font-bold mb-4">${professor ? 'Editar' : 'Adicionar'} Professor</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="professor-name" class="block text-sm font-medium text-gray-700">Nome do Professor</label>
+                            <input type="text" id="professor-name" class="mt-1 block w-full border rounded-md p-2" value="${professor ? professor.name : ''}" required>
+                        </div>
+                        <div>
+                            <label for="professor-materias" class="block text-sm font-medium text-gray-700">Matérias (separadas por vírgula)</label>
+                            <input type="text" id="professor-materias" class="mt-1 block w-full border rounded-md p-2" value="${professor ? professor.materias : ''}" required>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-6 py-3 -mx-6 mt-6 flex justify-end space-x-3">
+                        <button type="button" onclick="window.closeModal(document.getElementById('mainModal'))" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold py-2 px-4 rounded-lg">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        document.getElementById('professor-form').onsubmit = (e) => {
+            e.preventDefault();
+            const name = document.getElementById('professor-name').value.trim();
+            const materias = document.getElementById('professor-materias').value.trim();
+            if (!name || !materias) {
+                showAlert('Todos os campos são obrigatórios.');
+                return;
+            }
+
+            if (professor) { // Editing
+                professor.name = name;
+                professor.materias = materias;
+            } else { // Adding
+                const newId = `p${Date.now()}`;
+                data.professores.push({ id: newId, name, materias });
+            }
+            saveData();
+            renderProfessoresPage();
+            closeModal(mainModal);
+        };
+        
+        openModal(mainModal);
+    };
+
+    window.deleteProfessor = async (profId) => {
+        const isProfEmUso = Object.values(data.horario).some(turma => 
+            Object.values(turma).some(dia => 
+                dia.some(slot => slot?.profId === profId)
+            )
+        ) || Object.values(data.horarioRecuperacao).some(turma =>
+            Object.values(turma).some(dia =>
+                dia.some(slot => slot?.profId === profId)
+            )
+        );
+
+        if (isProfEmUso) {
+            showAlert('Não é possível excluir este professor, pois ele está alocado em um ou mais horários. Remova as alocações primeiro.', 'Ação Bloqueada');
+            return;
+        }
+
+        const confirmed = await showConfirm('Tem certeza que deseja excluir este professor?');
+        if (confirmed) {
+            data.professores = data.professores.filter(p => p.id !== profId);
+            saveData();
+            renderProfessoresPage();
+        }
+    };
+    
+    const renderTurmasPage = () => {
+        pages.turmas.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-800">Gerenciar Turmas</h1>
+                <button onclick="openTurmaModal()" class="bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold py-2 px-4 rounded-lg">
+                    + Adicionar Turma
+                </button>
+            </div>
+            <div id="turmas-list" class="bg-white p-4 rounded-lg shadow-md"></div>
+        `;
+
+        const container = document.getElementById('turmas-list');
+        container.innerHTML = '';
+        if (data.turmas.length === 0) {
+            container.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhuma turma cadastrada.</p>';
+            return;
+        }
+
+        data.turmas.sort((a, b) => a.name.localeCompare(b.name)).forEach(turma => {
+            const item = document.createElement('div');
+            item.className = 'flex justify-between items-center p-3 border-b last:border-b-0';
+            item.innerHTML = `
+                <span class="font-semibold">${turma.name}</span>
+                <div class="space-x-2">
+                    <button onclick="openTurmaModal('${turma.id}')" class="text-blue-600 hover:text-blue-800 font-medium">Editar</button>
+                    <button onclick="deleteTurma('${turma.id}')" class="text-red-500 hover:text-red-700 font-medium">Excluir</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    };
+    
+    window.openTurmaModal = (turmaId = null) => {
+        const turma = turmaId ? data.turmas.find(t => t.id === turmaId) : null;
+        mainModal.innerHTML = `
+            <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md transform -translate-y-10">
+                <form id="turma-form" class="p-6">
+                    <h2 class="text-2xl font-bold mb-4">${turma ? 'Editar' : 'Adicionar'} Turma</h2>
+                    <div>
+                        <label for="turma-name" class="block text-sm font-medium text-gray-700">Nome da Turma</label>
+                        <input type="text" id="turma-name" class="mt-1 block w-full border rounded-md p-2" value="${turma ? turma.name : ''}" required>
+                    </div>
+                    <div class="bg-gray-50 px-6 py-3 -mx-6 mt-6 flex justify-end space-x-3">
+                        <button type="button" onclick="window.closeModal(document.getElementById('mainModal'))" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-[#ff9900] hover:bg-[#e68a00] text-white font-bold py-2 px-4 rounded-lg">Salvar</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        document.getElementById('turma-form').onsubmit = (e) => {
+            e.preventDefault();
+            const name = document.getElementById('turma-name').value.trim();
+            if (!name) {
+                showAlert('O nome da turma é obrigatório.');
+                return;
+            }
+
+            if (turma) { // Editing
+                turma.name = name;
+            } else { // Adding
+                const newId = `t${Date.now()}`;
+                data.turmas.push({ id: newId, name });
+                const emptySchedule = {
+                    segunda: Array(6).fill(null), terca: Array(6).fill(null),
+                    quarta: Array(6).fill(null), quinta: Array(6).fill(null),
+                    sexta: Array(6).fill(null)
+                };
+                data.horario[newId] = JSON.parse(JSON.stringify(emptySchedule));
+                data.horarioRecuperacao[newId] = JSON.parse(JSON.stringify(emptySchedule));
+            }
+            saveData();
+            renderTurmasPage();
+            closeModal(mainModal);
+        };
+        
+        openModal(mainModal);
+    };
+
+    window.deleteTurma = async (turmaId) => {
+        const horarioTurma = data.horario[turmaId];
+        const horarioRecuperacaoTurma = data.horarioRecuperacao[turmaId];
+        const isTurmaEmUso = (horarioTurma && Object.values(horarioTurma).some(dia => dia.some(slot => slot !== null))) || 
+                             (horarioRecuperacaoTurma && Object.values(horarioRecuperacaoTurma).some(dia => dia.some(slot => slot !== null)));
+
+        if (isTurmaEmUso) {
+            showAlert('Não é possível excluir esta turma, pois ela possui professores alocados em seus horários. Remova as alocações primeiro.', 'Ação Bloqueada');
+            return;
+        }
+
+        const confirmed = await showConfirm('Tem certeza que deseja excluir esta turma?');
+        if (confirmed) {
+            data.turmas = data.turmas.filter(t => t.id !== turmaId);
+            delete data.horario[turmaId];
+            delete data.horarioRecuperacao[turmaId];
+            saveData();
+            renderTurmasPage();
+            renderGradePage(); // Refresh grade page as well
+        }
+    };
+    
+    const renderRelatoriosPage = () => {
+        pages.imprimir.innerHTML = `
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-800">Relatórios & Impressão</h1>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md space-y-4">
+                <div>
+                    <label for="report-schedule-type" class="block text-sm font-medium text-gray-700">Tipo de Horário</label>
+                    <select id="report-schedule-type" class="mt-1 block w-full border rounded-md p-2">
+                        <option value="normais">Aulas Normais</option>
+                        <option value="recuperacao">Recuperação</option>
+                    </select>
+                </div>
+                <div class="border-t pt-4">
+                    <h3 class="font-semibold text-gray-800 mb-2">Formato Página Inteira</h3>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <button id="print-turmas-btn" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg">Imprimir por Turmas</button>
+                        <button id="print-professores-btn" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg">Imprimir por Professores</button>
+                    </div>
+                </div>
+                <div class="border-t pt-4">
+                    <h3 class="font-semibold text-gray-800 mb-2">Formato Bilhetes (para colar no caderno)</h3>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <button id="print-turmas-tickets-btn" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg">Bilhetes por Turmas</button>
+                        <button id="print-professores-tickets-btn" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg">Bilhetes por Professores</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('print-turmas-btn').onclick = () => printByTurma(false);
+        document.getElementById('print-professores-btn').onclick = () => printByProfessor(false);
+        document.getElementById('print-turmas-tickets-btn').onclick = () => printByTurma(true);
+        document.getElementById('print-professores-tickets-btn').onclick = () => printByProfessor(true);
+    };
+    
+    // --- PRINTING & BACKUP ---
+    const printByTurma = (isTicket = false) => {
+        if (data.turmas.length === 0) {
+            showAlert('Nenhuma turma cadastrada para gerar o relatório.');
+            return;
+        }
+        const scheduleType = document.getElementById('report-schedule-type').value;
+        const scheduleObject = scheduleType === 'normais' ? data.horario : data.horarioRecuperacao;
+        const scheduleName = scheduleType === 'normais' ? 'Aulas Normais' : 'Recuperação';
+
+        const printArea = document.getElementById('print-area');
+        const logoSrc = document.getElementById('school-logo').src;
+        const diasNomes = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+        const horarios = ['1º Horário', '2º Horário', '3º Horário', '4º Horário', '5º Horário', '6º Horário'];
+
+        let allTables = data.turmas.map(turma => {
+            let tableHTML = `
+                <div class="${isTicket ? 'ticket' : 'page-break'}">
+                    <div class="print-header"><img src="${logoSrc}" alt="Logo"></div>
+                    <h2 style="text-align: center; font-size: ${isTicket ? '1rem' : '1.5rem'}; font-weight: bold; margin-bottom: 0.5rem;">${turma.name}</h2>
+                    <h3 style="text-align: center; font-size: ${isTicket ? '0.8rem' : '1rem'}; font-weight: normal; margin-bottom: 1rem;">Horário - ${scheduleName}</h3>
+                    <table class="print-table">
+                        <thead>
+                            <tr>
+                                <th>Horário</th>
+                                ${diasNomes.map(dia => `<th>${dia}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${horarios.map((horario, slotIndex) => `
+                                <tr>
+                                    <td><b>${horario}</b></td>
+                                    ${['segunda', 'terca', 'quarta', 'quinta', 'sexta'].map(dia => {
+                                        const alocacao = scheduleObject[turma.id]?.[dia]?.[slotIndex];
+                                        if (alocacao) {
+                                            const prof = data.professores.find(p => p.id === alocacao.profId);
+                                            return `<td><b>${alocacao.materia} ${alocacao.tipo ? `(${alocacao.tipo})` : ''}</b><br><small>${prof ? prof.name : ''}</small></td>`;
+                                        }
+                                        return '<td>-</td>';
+                                    }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+            return tableHTML;
+        }).join('');
+
+        printArea.innerHTML = isTicket ? `<div class="ticket-container">${allTables}</div>` : allTables;
+        window.print();
+    };
+
+    const printByProfessor = (isTicket = false) => {
+        if (data.professores.length === 0) {
+            showAlert('Nenhum professor cadastrado para gerar o relatório.');
+            return;
+        }
+        const scheduleType = document.getElementById('report-schedule-type').value;
+        const scheduleObject = scheduleType === 'normais' ? data.horario : data.horarioRecuperacao;
+        const scheduleName = scheduleType === 'normais' ? 'Aulas Normais' : 'Recuperação';
+        
+        const printArea = document.getElementById('print-area');
+        const logoSrc = document.getElementById('school-logo').src;
+        const diasNomes = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+        const horarios = ['1º Horário', '2º Horário', '3º Horário', '4º Horário', '5º Horário', '6º Horário'];
+
+        let allTables = data.professores.map(prof => {
+            let tableHTML = `
+                <div class="${isTicket ? 'ticket' : 'page-break'}">
+                    <div class="print-header"><img src="${logoSrc}" alt="Logo"></div>
+                    <h2 style="text-align: center; font-size: ${isTicket ? '1rem' : '1.5rem'}; font-weight: bold; margin-bottom: 0.5rem;">${prof.name}</h2>
+                    <h3 style="text-align: center; font-size: ${isTicket ? '0.8rem' : '1rem'}; font-weight: normal; margin-bottom: 1rem;">Horário - ${scheduleName}</h3>
+                    <table class="print-table">
+                         <thead>
+                            <tr>
+                                <th>Horário</th>
+                                ${diasNomes.map(dia => `<th>${dia}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${horarios.map((horario, slotIndex) => `
+                                <tr>
+                                    <td><b>${horario}</b></td>
+                                    ${['segunda', 'terca', 'quarta', 'quinta', 'sexta'].map(dia => {
+                                        let cellContent = '-';
+                                        for (const turma of data.turmas) {
+                                            const alocacao = scheduleObject[turma.id]?.[dia]?.[slotIndex];
+                                            if (alocacao && alocacao.profId === prof.id) {
+                                                cellContent = `<b>${alocacao.materia} ${alocacao.tipo ? `(${alocacao.tipo})` : ''}</b><br><small>${turma.name}</small>`;
+                                                break;
+                                            }
+                                        }
+                                        return `<td>${cellContent}</td>`;
+                                    }).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            return tableHTML;
+        }).join('');
+        printArea.innerHTML = isTicket ? `<div class="ticket-container">${allTables}</div>` : allTables;
+        window.print();
+    };
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+        const now = new Date();
+        data.metadata.lastExport = now.toISOString();
+        saveData();
+
+        const date = now.toLocaleDateString('pt-BR').split('/').join('_');
+        const time = now.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}).split(':').join('_');
+        const filename = `gerenciador_de_horarios_backup_${date}-${time}.json`;
+
+        const exportObject = {
+            exportTimestamp: now.toISOString(),
+            appData: data
+        };
+
+        const dataStr = JSON.stringify(exportObject, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = url;
+        link.click();
+        URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('importFile').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const confirmed = await showConfirm('Importar este arquivo irá substituir todos os dados atuais. Deseja continuar?');
+        if (!confirmed) {
+            e.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const importedObject = JSON.parse(event.target.result);
+                // Check for new and old format
+                if (importedObject.appData && importedObject.appData.professores && importedObject.appData.turmas && importedObject.appData.horario) {
+                    data = importedObject.appData;
+                    data.metadata.lastImport = new Date().toISOString();
+                    data.metadata.lastImportOrigin = importedObject.exportTimestamp;
+                } else if (importedObject.professores && importedObject.turmas && importedObject.horario) { // Old format
+                    data = {
+                        professores: importedObject.professores || [],
+                        turmas: importedObject.turmas || [],
+                        horario: importedObject.horario || {},
+                        horarioRecuperacao: importedObject.horarioRecuperacao || {},
+                        metadata: {
+                            lastModified: new Date().toISOString(),
+                            lastExport: null,
+                            lastImport: new Date().toISOString(),
+                            lastImportOrigin: null // Can't know origin from old format
+                        }
+                    };
+                } else {
+                     throw new Error('Formato do arquivo inválido.');
+                }
+                
+                saveData();
+                showAlert('Backup importado com sucesso! A página será recarregada.');
+                setTimeout(() => location.reload(), 1500);
+
+            } catch (err) {
+                showAlert('Erro ao importar o arquivo.', 'Erro');
+            } finally {
+                e.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    });
+
+
+    // --- INITIALIZATION ---
+    loadData();
+    showPage('grade');
+});
+</script>
+</body>
+</html>
